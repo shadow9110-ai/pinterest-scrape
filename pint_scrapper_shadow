@@ -1,0 +1,138 @@
+import axios from "axios";
+import { v4 as uuidv4 } from "uuid";
+import * as cheerio from "cheerio";
+
+// List of user agents for rotation to avoid being blocked
+const userAgents = [
+  "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Mobile Safari/537.36",
+  "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile Safari/604.1",
+];
+
+/**
+ * Shuffles an array using the Fisher-Yates algorithm
+ * @param {Array} array - The array to shuffle
+ * @returns {Array} Shuffled array
+ */
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+/**
+ * Scrapes high-resolution image URLs from Pinterest based on a keyword
+ * @param {string} keyword - The search keyword
+ * @param {number} [retries=2] - Number of retry attempts for failed requests
+ * @param {number} [limit=10] - Maximum number of image URLs to return
+ * @returns {Promise<string[]>} Array of high-resolution image URLs
+ */
+export async function scrapePinterestImages(keyword, retries = 2, limit = 10) {
+  if (!keyword || typeof keyword !== "string") {
+    throw new Error("A valid search keyword is required");
+  }
+
+  const searchUrl = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(keyword)}`;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await axios.get(searchUrl, {
+        headers: {
+          "User-Agent": userAgents[Math.floor(Math.random() * userAgents.length)],
+          "Accept-Language": "en-US,en;q=0.9",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        },
+        timeout: 30000,
+      });
+
+      const html = response.data;
+      const $ = cheerio.load(html);
+      const imageUrls = new Set();
+
+      // Extract images from pin containers
+      $("div[data-test-id='pinWrapper'] img").each((_, element) => {
+        let src = $(element).attr("src");
+        if (!src) return;
+
+        // Skip irrelevant content
+        if (
+          src.includes("/avatars/") ||
+          src.includes("/user-default/") ||
+          src.includes("/75x75/") ||
+          src.includes("/gif/") ||
+          src.includes("profile_images") ||
+          src.includes("data:image") ||
+          src.includes(".svg")
+        ) {
+          return;
+        }
+
+        // Convert to high-resolution by replacing size with /originals/
+        src = src.replace(/\/\d+x\//, "/originals/");
+        if (src.startsWith("//")) src = `https:${src}`;
+        if (src.includes("pinimg.com")) imageUrls.add(src);
+      });
+
+      // Fallback: Extract from JSON-LD script tags
+      $("script[type='application/ld+json']").each((_, element) => {
+        try {
+          const jsonData = JSON.parse($(element).html());
+          if (jsonData.image && typeof jsonData.image === "string") {
+            let imgUrl = jsonData.image;
+            if (
+              imgUrl.includes("pinimg.com") &&
+              !imgUrl.includes("/75x75/") &&
+              !imgUrl.includes("/avatars/") &&
+              !imgUrl.includes(".svg")
+            ) {
+              imgUrl = imgUrl.replace(/\/\d+x\//, "/originals/");
+              imageUrls.add(imgUrl);
+            }
+          }
+        } catch (err) {
+          console.warn(`Failed to parse JSON-LD: ${err.message}`);
+        }
+      });
+
+      const allUrls = Array.from(imageUrls);
+      if (allUrls.length === 0) {
+        console.log("No valid image URLs found");
+        return [];
+      }
+
+      // Shuffle and limit the number of URLs
+      const shuffledUrls = shuffleArray(allUrls).slice(0, limit);
+      console.log(`Scraped ${allUrls.length} high-res image URLs, selected ${shuffledUrls.length}`);
+      return shuffledUrls;
+    } catch (err) {
+      console.error(`Attempt ${attempt} failed: ${err.message}`);
+      if (attempt < retries) {
+        console.log("Retrying in 2 seconds...");
+        await new Promise((res) => setTimeout(res, 2000));
+      } else {
+        console.error("All retries failed");
+        return [];
+      }
+    }
+  }
+}
+
+/**
+ * Example usage of the scraper
+ * @param {string} keyword - The search term to query Pinterest
+ * @returns {Promise<void>}
+ */
+export async function exampleUsage(keyword) {
+  try {
+    const images = await scrapePinterestImages(keyword);
+    if (images.length === 0) {
+      console.log("No images found for the keyword:", keyword);
+      return;
+    }
+    console.log("Found images:", images);
+  } catch (error) {
+    console.error("Error in example usage:", error.message);
+  }
+}
