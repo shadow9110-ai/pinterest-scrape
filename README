@@ -1,0 +1,61 @@
+Pinterest Image Scraper
+A lightweight Node.js script to scrape high-resolution image URLs from Pinterest based on a search keyword.
+Features
+
+Scrapes high-resolution images from Pinterest search results
+Rotates user agents to avoid being blocked
+Filters out irrelevant content (avatars, gifs, low-res images)
+Returns a randomized selection of image URLs
+Handles retries for failed requests
+
+Prerequisites
+
+Node.js (v16 or higher)
+npm or yarn for package management
+
+Installation
+
+Clone the repository:git clone https://github.com/shadow9110-ai/pinterest-scrape.git
+cd pinterest-scraper
+
+
+Install dependencies:npm install axios cheerio uuid
+
+
+
+Usage
+
+Import the scraper function:import { scrapePinterestImages } from './pinterest-scraper.js';
+
+
+Call the function with a keyword:async function main() {
+  const images = await scrapePinterestImages('cats');
+  console.log(images);
+}
+main();
+
+
+Optionally, use the example usage function:import { exampleUsage } from './pinterest-scraper.js';
+exampleUsage('cats');
+
+
+
+Parameters
+
+keyword (string): The search term to query Pinterest (required).
+retries (number, optional): Number of retry attempts for failed requests (default: 2).
+limit (number, optional): Maximum number of image URLs to return (default: 10).
+
+Example Output
+[
+  'https://i.pinimg.com/originals/xx/xx/xx/xxxx.jpg',
+  'https://i.pinimg.com/originals/yy/yy/yy/yyyy.jpg',
+  ...
+]
+
+Notes
+
+YOU'RE GAY.
+
+License
+THANKS TO ME AND MYSELF.
